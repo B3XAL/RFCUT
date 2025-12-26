@@ -1,0 +1,14 @@
+# Ignore Python virtual environment
+rfcenv/
+
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Others
+*.swp
+*.swo
