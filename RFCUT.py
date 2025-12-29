@@ -6,6 +6,7 @@ from urllib.parse import quote
 import pyperclip
 import time
 import re
+import signal
 
 try:
     import pyperclip
@@ -13,6 +14,11 @@ try:
 except ImportError:
     CLIPBOARD = False
 
+def clean_exit(signum=None, frame=None):
+    print("\n\n\033[91m[ EXIT ]\033[0m Operation cancelled by user.\n")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, clean_exit)
 
 # =========================
 # CONFIG
@@ -115,14 +121,14 @@ def b_encode(data: bytes) -> str:
 
 def encode_imap_utf7_full_from_bytes(raw: bytes) -> bytes:
     """
-    IMAP UTF-7 COMPLETO sobre TODO el payload
+    FULL IMAP UTF-7 over the ENTIRE payload
     bytes -> latin-1 -> UTF-16BE -> Base64 modificado -> &...-
     """
-    text = raw.decode("latin-1")                      #### modificado
-    utf16 = text.encode("utf-16-be")                   #### modificado
-    b64 = base64.b64encode(utf16).decode("ascii")     #### modificado
-    b64 = b64.replace("/", ",").rstrip("=")           #### modificado
-    return f"&{b64}-".encode("ascii")                  #### modificado
+    text = raw.decode("latin-1")
+    utf16 = text.encode("utf-16-be")
+    b64 = base64.b64encode(utf16).decode("ascii")
+    b64 = b64.replace("/", ",").rstrip("=")
+    return f"&{b64}-".encode("ascii")
 
 def detect_specials(raw: bytes) -> set[int]:
     specials = set()
@@ -132,19 +138,19 @@ def detect_specials(raw: bytes) -> set[int]:
         if b < 0x20 or b >= 0x7F:
             specials.add(b)
 
-    # 2) Puntuación seleccionada por el usuario
+    # 2) User-selected 
     for v in PUNCTUATION.values():
         specials |= set(v)
 
-    # 3) Control chars seleccionados
+    # 3) Control chars selected
     for v in CONTROL_CHARS.values():
         specials |= set(v)
 
-    # 4) Secuencias especiales
+    # 4) Special sequences
     for v in SPECIAL_SEQUENCES.values():
         specials |= set(v)
 
-    # 5) Separadores semánticos dentro del texto del usuario
+    # 5) Semantic separators within the user's text
     for b in b".@:-_":
         specials.add(b)
 
@@ -174,7 +180,7 @@ def encode_payload(raw: bytes, charset: str, encoding: str):
     # =========================
 
     if charset == "utf-7":
-        data = encode_imap_utf7_full_from_bytes(raw)   #### modificado
+        data = encode_imap_utf7_full_from_bytes(raw)
     else:
         data = raw
 
@@ -189,15 +195,15 @@ def encode_payload(raw: bytes, charset: str, encoding: str):
     elif encoding == "q":
 
         if charset == "utf-7":
-            # Variante A: UTF-7 sin Q forzado
+            # Variant A: UTF-7 without forced Q
             results.append(
-                f"=?utf-7?q?{data.decode('ascii', 'ignore')}?="  #### modificado
+                f"=?utf-7?q?{data.decode('ascii', 'ignore')}?="
             )
 
-            # Variante B: solo '&' escapado
-            escaped = data.replace(b"&", b"=26")        #### modificado
+            # Variant B: only escaped '&'
+            escaped = data.replace(b"&", b"=26")
             results.append(
-                f"=?utf-7?q?{escaped.decode('ascii', 'ignore')}?="  #### modificado
+                f"=?utf-7?q?{escaped.decode('ascii', 'ignore')}?="
             )
 
         else:
@@ -208,22 +214,22 @@ def encode_payload(raw: bytes, charset: str, encoding: str):
         raise ValueError("\033[91m[ ERROR ] Encoding inválido\033[0m")
 
     # =========================
-    # NUEVAS VARIANTES PARCIALES (A MAYORES)
+    # PARTIAL VARIATIONS
     # =========================
 
     specials = detect_specials(raw)
 
     if specials:
 
-        # --- Q parcial en cualquier charset ---
+        # --- Partial Q in any charset ---
         partial_q = q_encode_partial(raw, specials)
         results.append(f"=?{charset}?q?{partial_q}?=")
 
-        # --- UTF-7 parcial ---
+        # --- Partial UTF-7 ---
         utf7_partial = utf7_encode_partial(raw, specials)
         results.append(f"=?utf-7?q?{utf7_partial.decode('ascii','ignore')}?=")
 
-        # --- UTF-7 parcial + Q solo sobre '&' ---
+        # ---  Partial UTF-7 + Q only on '&' ---
         q_on_amp = q_encode_partial(utf7_partial, {ord('&')})
         results.append(f"=?utf-7?q?{q_on_amp}?=")
 
@@ -236,23 +242,20 @@ def encode_payload(raw: bytes, charset: str, encoding: str):
 # =========================
 
 def build_payload(base: str, punct: bytes | None, control: bytes | None) -> bytes:
-    """
-    Construye el payload EXACTAMENTE como si lo metiera el usuario
-    """
     raw = base.encode("latin-1")
 
     if punct is not None:
-        raw += punct                                  #### modificado
+        raw += punct
 
     if control is not None:
-        raw += control                                #### modificado
+        raw += control
 
     return raw
 
 
 def generate_all(raw: bytes):
     """
-    Aplica todos los charset + encoding al MISMO payload
+    Apply all charsets + encoding to the SAME payload
     """
     results = []
     for cs in CHARSETS:
@@ -317,27 +320,39 @@ def generate_punycode_variants(domain, letter, pos, unique_only=False, local_par
     print(f"\033[92m[ INFO ] Valid punycode variants (unique): {len(valid_punycode)}\033[0m")
     print(f"\033[96m[ INFO ] Elapsed time: {elapsed:.2f}s\033[0m\n")
 
-    # Numerar y preparar lista raw
+    # Number and prepare raw list
     numbered_list = []
     raw_list = []
-    for idx, (puny, char) in enumerate(valid_punycode.items(), 1):
-        if local_part:
-            full = f"{local_part}@{puny}"
-        else:
-            full = puny
-        numbered_list.append(f"{idx}. {full} -> {char}")
-        raw_list.append(full)
 
-    # Mostrar numerados
+    idx = 1
+    for puny, char in valid_punycode.items():
+
+        # Punycode variant
+        if local_part:
+            puny_mail = f"{local_part}@{puny}"
+            unicode_mail = f"{local_part}@{domain[:pos]}{char}{domain[pos+1:]}"
+        else:
+            puny_mail = puny
+            unicode_mail = domain[:pos] + char + domain[pos+1:]
+
+        numbered_list.append(f"{idx}. {puny_mail} -> {char}")
+        raw_list.append(puny_mail)
+        idx += 1
+
+        numbered_list.append(f"{idx}. {unicode_mail}")
+        raw_list.append(unicode_mail)
+        idx += 1
+
+    # Show numbered
     for line in numbered_list:
         print(line)
 
-    print("\n")  # Separador
-    # Mostrar solo punycodes / dominios / emails
+    print("\n")
+    # Show only punycodes / domains / emails
     for item in raw_list:
         print(item)
 
-    # Copiar al clipboard
+    # Copy to clipboard
     pyperclip.copy("\n".join(raw_list))
     print("\n\033[92m[ OK ]  All punycode variants copied to clipboard\033[0m\n")
 
@@ -345,7 +360,6 @@ def generate_punycode_variants(domain, letter, pos, unique_only=False, local_par
 
 def test_working_variant(valid_dict):
     """Ask user which variant worked and decode back to Unicode"""
-    # Preguntar si quiere usar el usuario
     use_variant = input("\033[93mDo you want to check which variant worked? (y/n): \033[0m").strip().lower()
     if use_variant != "y":
         print("\n\033[96m[ INFO ] Skipping variant check.\033[0m\n")
@@ -409,7 +423,7 @@ def punycode_menu():
                 combined_valid_dict = {}
                 combined_list = []
 
-                # Primera vocal
+                # First vowel
                 vowel, pos_v = find_first_letter(domain, letters_vowel)
                 if vowel:
                     print(f"\n\033[96m[ INFO ]\033[0m First vowel found: \033[92m'{vowel}'\033[0m at position \033[92m{pos_v}\033[0m")
@@ -419,7 +433,7 @@ def punycode_menu():
                 else:
                     print("\033[91m[ ERROR ] No vowel found in domain.\033[0m\n")
 
-                # Primera consonante
+                # First consonant
                 consonant, pos_c = find_first_letter(domain, letters_consonant)
                 if consonant:
                     print(f"\n\033[96m[ INFO ]\033[0m First consonant found: \033[92m'{consonant}'\033[0m at position \033[92m{pos_c}\033[0m")
@@ -429,15 +443,15 @@ def punycode_menu():
                 else:
                     print("\033[91m[ ERROR ] No consonant found in domain.\033[0m\n")
 
-                # Mostrar TODO en un único listado numerado
+                # Display ALL in a single numbered list
                 if combined_list:
                     print("\n\033[96m[ COMBINED PUNYCODE VARIANTS ]\033[0m")
                     for idx, item in enumerate(combined_list, 1):
-                        print(f"\033[92m{idx}.\033[0m {item}")
+                        print(f"{item}")
                     pyperclip.copy("\n".join(combined_list))
                     print("\n\033[92m[ OK ] All punycode variants (vowel + consonant) copied to clipboard\033[0m\n")
 
-                # Preguntar si funcionó alguna
+                # Ask if any of them worked
                 if combined_valid_dict:
                     test_working_variant(combined_valid_dict)
 
