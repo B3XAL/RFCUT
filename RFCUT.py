@@ -349,6 +349,7 @@ def generate_punycode_variants(domain, letter, pos, unique_only=False, local_par
 
     print("\n")
     # Show only punycodes / domains / emails
+    raw_list = list(dict.fromkeys(raw_list))
     for item in raw_list:
         print(item)
 
@@ -446,6 +447,7 @@ def punycode_menu():
                 # Display ALL in a single numbered list
                 if combined_list:
                     print("\n\033[96m[ COMBINED PUNYCODE VARIANTS ]\033[0m")
+                    combined_list = list(dict.fromkeys(combined_list))
                     for idx, item in enumerate(combined_list, 1):
                         print(f"{item}")
                     pyperclip.copy("\n".join(combined_list))
