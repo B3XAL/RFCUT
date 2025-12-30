@@ -1,387 +1,38 @@
-import base64
-import sys
-from icu import Collator, Locale
-from base64 import b64encode
-from urllib.parse import quote
-import pyperclip
-import time
-import re
-import signal
-
-try:
-    import pyperclip
-    CLIPBOARD = True
-except ImportError:
-    CLIPBOARD = False
-
-def clean_exit(signum=None, frame=None):
-    print("\n\n\033[91m[ EXIT ]\033[0m Operation cancelled by user.\n")
-    sys.exit(0)
-
-signal.signal(signal.SIGINT, clean_exit)
+from core.encoders import *
+from core.payloads import *
+from core.homograph import *
+from core.punycode import *
+from core.fuzzers import *
+from utils.ui import *
 
 # =========================
-# CONFIG
+# PUNNYCODE - MENU
 # =========================
-
-CHARSETS = ["utf-8", "iso-8859-1", "utf-7", "x"]
-ENCODINGS = ["q", "b"]
-
-collator = Collator.createInstance(Locale('en_US'))
-collator.setStrength(collator.PRIMARY)  # Ignore case and accents
-unicode_max = 0x10FFFF
-URLENCODE = 0
-
-PUNCTUATION = {
-    "NONE": b"",
-    ">":    b"\x3e",
-    ",": b"\x2c",
-    "/": b"\x2f",
-    "//": b"\x2f\x2f",
-    "\"": b"\x22",
-    "\\": b"\x5c",
-    ";":  b"\x3b",
-    "SPACE":b"\x20",
-}
-
-CONTROL_CHARS = {
-    "NONE": b"",
-    "NULL": b"\x00",
-    "SOH":  b"\x01",
-    "STX":  b"\x02",
-    "ETX":  b"\x03",
-    "EOT":  b"\x04",
-    "ENQ":  b"\x05",
-    "ACK":  b"\x06",
-    "BEL":  b"\x07",
-    "BS":   b"\x08",
-    "TAB":  b"\x09",
-    "LF":   b"\x0A",
-    "VT":   b"\x0B",
-    "FF":   b"\x0C",
-    "CR":   b"\x0D",
-    "SO":   b"\x0E",
-    "SI":   b"\x0F",
-    "DLE":  b"\x10",
-    "DC1":  b"\x11",
-    "DC2":  b"\x12",
-    "DC3":  b"\x13",
-    "DC4":  b"\x14",
-    "NAK":  b"\x15",
-    "SYN":  b"\x16",
-    "ETB":  b"\x17",
-    "CAN":  b"\x18",
-    "EM":   b"\x19",
-    "SUB":  b"\x1A",
-    "ESC":  b"\x1B",
-    "FS":   b"\x1C",
-    "GS":   b"\x1D",
-    "RS":   b"\x1E",
-    "US":   b"\x1F",
-    "SPACE":b"\x20",
-
-}
-
-SPECIAL_SEQUENCES = {
-    "CRLF": b"\x0D\x0A",
-    "CRLF_TAB": b"\x0D\x0A\x09",
-    "CRLF_SP":  b"\x0D\x0A\x20",
-}
-
-# =========================
-# MAIL DISCREPANCES
-# =========================
-
-# =========================
-# ENCODERS
-# =========================
-
-def q_encode_force(data: bytes) -> str:
-    """
-    RFC 2047 Q-encoding FORZADO
-    Todos los bytes -> =XX
-    """
-    return "".join(f"={b:02X}" for b in data)
-
-def q_encode_partial(raw: bytes, specials: set[int]) -> str:
-    out = []
-    for b in raw:
-        if b in specials:
-            out.append(f"={b:02X}")
-        else:
-            out.append(chr(b))
-    return "".join(out)
-
-def b_encode(data: bytes) -> str:
-    """
-    RFC 2045 Base64 con padding
-    """
-    return base64.b64encode(data).decode("ascii")
-
-
-def encode_imap_utf7_full_from_bytes(raw: bytes) -> bytes:
-    """
-    FULL IMAP UTF-7 over the ENTIRE payload
-    bytes -> latin-1 -> UTF-16BE -> Base64 modificado -> &...-
-    """
-    text = raw.decode("latin-1")
-    utf16 = text.encode("utf-16-be")
-    b64 = base64.b64encode(utf16).decode("ascii")
-    b64 = b64.replace("/", ",").rstrip("=")
-    return f"&{b64}-".encode("ascii")
-
-def detect_specials(raw: bytes) -> set[int]:
-    specials = set()
-
-    # 1) Control y no-ASCII
-    for b in raw:
-        if b < 0x20 or b >= 0x7F:
-            specials.add(b)
-
-    # 2) User-selected 
-    for v in PUNCTUATION.values():
-        specials |= set(v)
-
-    # 3) Control chars selected
-    for v in CONTROL_CHARS.values():
-        specials |= set(v)
-
-    # 4) Special sequences
-    for v in SPECIAL_SEQUENCES.values():
-        specials |= set(v)
-
-    # 5) Semantic separators within the user's text
-    for b in b".@:-_":
-        specials.add(b)
-
-    return specials
-
-
-def utf7_encode_partial(raw: bytes, specials: set[int]) -> bytes:
-    out = bytearray()
-    for b in raw:
-        if b in specials:
-            t = bytes([b]).decode("latin-1")
-            u = t.encode("utf-16-be")
-            b64 = base64.b64encode(u).decode().replace("/", ",").rstrip("=")
-            out.extend(f"&{b64}-".encode())
-        else:
-            out.append(b)
-    return bytes(out)
-
-def encode_payload(raw: bytes, charset: str, encoding: str):
-    """
-    Devuelve una lista de encoded-words
-    """
-    results = []
-
-    # =========================
-    # CHARSET PHASE
-    # =========================
-
-    if charset == "utf-7":
-        data = encode_imap_utf7_full_from_bytes(raw)
-    else:
-        data = raw
-
-    # =========================
-    # ENCODING PHASE
-    # =========================
-
-    if encoding == "b":
-        encoded = b_encode(data)
-        results.append(f"=?{charset}?b?{encoded}?=")
-
-    elif encoding == "q":
-
-        if charset == "utf-7":
-            # Variant A: UTF-7 without forced Q
-            results.append(
-                f"=?utf-7?q?{data.decode('ascii', 'ignore')}?="
-            )
-
-            # Variant B: only escaped '&'
-            escaped = data.replace(b"&", b"=26")
-            results.append(
-                f"=?utf-7?q?{escaped.decode('ascii', 'ignore')}?="
-            )
-
-        else:
-            q = q_encode_force(data)
-            results.append(f"=?{charset}?q?{q}?=")
-
-    else:
-        raise ValueError("\033[91m[ ERROR ] Encoding inválido\033[0m")
-
-    # =========================
-    # PARTIAL VARIATIONS
-    # =========================
-
-    specials = detect_specials(raw)
-
-    if specials:
-
-        # --- Partial Q in any charset ---
-        partial_q = q_encode_partial(raw, specials)
-        results.append(f"=?{charset}?q?{partial_q}?=")
-
-        # --- Partial UTF-7 ---
-        utf7_partial = utf7_encode_partial(raw, specials)
-        results.append(f"=?utf-7?q?{utf7_partial.decode('ascii','ignore')}?=")
-
-        # ---  Partial UTF-7 + Q only on '&' ---
-        q_on_amp = q_encode_partial(utf7_partial, {ord('&')})
-        results.append(f"=?utf-7?q?{q_on_amp}?=")
-
-
-    return results
-
-
-# =========================
-# PAYLOAD BUILDERS
-# =========================
-
-def build_payload(base: str, punct: bytes | None, control: bytes | None) -> bytes:
-    raw = base.encode("latin-1")
-
-    if punct is not None:
-        raw += punct
-
-    if control is not None:
-        raw += control
-
-    return raw
-
-
-def generate_all(raw: bytes):
-    """
-    Apply all charsets + encoding to the SAME payload
-    """
-    results = []
-    for cs in CHARSETS:
-        for enc in ENCODINGS:
-            results.extend(encode_payload(raw, cs, enc))
-    return results
-
-# =========================
-# PUNNYCODE
-# =========================
-
-def generate_equivalences(base_char):
-    """Generates all Unicode equivalents of a character"""
-    equivalences = []
-    for codepoint in range(0x20, unicode_max + 1):
-        try:
-            char = chr(codepoint)
-        except ValueError:
-            continue
-        try:
-            if collator.compare(char, base_char) == 0:
-                equivalences.append(char)
-        except Exception:
-            continue
-    return equivalences
-
-def parse_input(user_input):
-    """Detects if input is email or domain"""
-    if "@" in user_input:
-        local, domain = user_input.split("@", 1)
-        print(f"\n\033[96m[ DETECTED EMAIL ]\033[0m  \033[92mLocal-part='{local}'\033[0m, \033[92mDomain='{domain}'\033[0m")
-        #print(f"\nDetected email. Local-part='{local}', domain='{domain}'")
-        return domain, local
-    else:
-        return user_input, None
-
-def find_first_letter(domain, letters):
-    for i, c in enumerate(domain):
-        if c.lower() in letters:
-            return c, i
-    return None, None
-
-def generate_punycode_variants(domain, letter, pos, unique_only=False, local_part=None):
-    print("\n\033[96m[ PUNYCODE VARIANTS ]\033[0m")
-    print("\033[93mScanning Unicode blocks to generate variants... (this may take a few seconds)\033[0m")
-    start_time = time.time()
-    variants = generate_equivalences(letter)
-    print(f"\033[92mDone. Candidates found: {len(variants)}\033[0m\n")
-
-    valid_punycode = {}
-    for v in variants:
-        if unique_only and v.lower() in [x.lower() for x in valid_punycode.values()]:
-            continue
-        try:
-            mutated_domain = domain[:pos] + v + domain[pos+1:]
-            puny = mutated_domain.encode("idna").decode("ascii")
-            valid_punycode[puny] = v
-        except Exception:
-            continue
-
-    elapsed = time.time() - start_time
-    print(f"\033[92m[ INFO ] Valid punycode variants (unique): {len(valid_punycode)}\033[0m")
-    print(f"\033[96m[ INFO ] Elapsed time: {elapsed:.2f}s\033[0m\n")
-
-    # Number and prepare raw list
-    numbered_list = []
-    raw_list = []
-
-    idx = 1
-    for puny, char in valid_punycode.items():
-
-        # Punycode variant
-        if local_part:
-            puny_mail = f"{local_part}@{puny}"
-            unicode_mail = f"{local_part}@{domain[:pos]}{char}{domain[pos+1:]}"
-        else:
-            puny_mail = puny
-            unicode_mail = domain[:pos] + char + domain[pos+1:]
-
-        numbered_list.append(f"{idx}. {puny_mail} -> {char}")
-        raw_list.append(puny_mail)
-        idx += 1
-
-        numbered_list.append(f"{idx}. {unicode_mail}")
-        raw_list.append(unicode_mail)
-        idx += 1
-
-    # Show numbered
-    for line in numbered_list:
-        print(line)
-
-    print("\n")
-    # Show only punycodes / domains / emails
-    raw_list = list(dict.fromkeys(raw_list))
-    for item in raw_list:
-        print(item)
-
-    # Copy to clipboard
-    pyperclip.copy("\n".join(raw_list))
-    print("\n\033[92m[ OK ]  All punycode variants copied to clipboard\033[0m\n")
-
-    return valid_punycode, raw_list
-
-def test_working_variant(valid_dict):
-    """Ask user which variant worked and decode back to Unicode"""
-    use_variant = input("\033[93mDo you want to check which variant worked? (y/n): \033[0m").strip().lower()
-    if use_variant != "y":
-        print("\n\033[96m[ INFO ] Skipping variant check.\033[0m\n")
-        return
-    print("\n\033[96m[ INPUT ] Enter punycode that worked (full domain or email)\033[0m")
-    user_input = input("\033[93m> \033[0m").strip()
-    # extract domain from email if needed
-    if "@" in user_input:
-        local, domain_input = user_input.split("@", 1)
-    else:
-        domain_input = user_input
-    char_found = valid_dict.get(domain_input)
-    if char_found:
-        print(f"\n\033[92m[ SUCCESS ]\033[0m Variant corresponds to Unicode character: '{char_found}' (U+{ord(char_found):04X})\n")
-    else:
-        print(f"\n\033[91m[ ERROR ]\033[0m Variant not found in generated list.\n")
 
 def punycode_menu():
     while True:
+        print("\n\033[96m[ PUNYCODE :: MAIN MODE ]\033[0m\n")
+        print("  \033[92m(1)\033[0m  Homograph discovery")
+        print("  \033[92m(2)\033[0m  Craft malformed Punycode")
+        print("  \033[92m(2)\033[0m  Back\n")
+
+        pre_choice = input("\033[93m> \033[0m").strip()
+
+        if pre_choice == "1":
+            homograph_mode()
+        elif pre_choice == "2":
+        #    malformed_punycode_mode()
+            print("\n  \033[93m[ UNDER CONSTRUCTION ]\033[0m\n")
+        elif pre_choice == "3":
+            break
+        else:
+            print("\033[91m[ ERROR ] Invalid choice, try again...\033[0m\n")
+
+
+def homograph_mode():
+    while True:
         # Menu header
-        print("\n\033[96m[ PUNYCODE :: MODE]\033[0m\n")
+        print("\n\033[96m[ PUNYCODE :: HOMOGRAPH MODE]\033[0m\n")
 
         # Options
         print("  \033[92m(1)\033[0m  Generate variants for a single vowel")
@@ -406,8 +57,8 @@ def punycode_menu():
                     print("\n\033[91m[ ERROR ] No vowel found in domain.\033[0m\n")
                     continue
                 print(f"\n\033[96m[ INFO ]\033[0m First vowel found: \033[92m'{letter}'\033[0m at position \033[92m{pos}\033[0m\n")
-                valid_dict, puny_list = generate_punycode_variants(domain, letter, pos, local_part=local_part)
-                test_working_variant(valid_dict)
+                valid_dict, puny_list = generate_punycode_variants(domain, letter, pos, local_part=local_part, homograph_only=True)
+                #test_working_variant(valid_dict)
 
             elif choice == "2":
                 letter, pos = find_first_letter(domain, letters_consonant)
@@ -416,7 +67,7 @@ def punycode_menu():
                     continue
                     print(f"\n\033[96m[ INFO ]\033[0m First consonant found: \033[92m'{letter}'\033[0m at position \033[92m{pos}\033[0m\n")
                 valid_dict, puny_list = generate_punycode_variants(domain, letter, pos, local_part=local_part)
-                test_working_variant(valid_dict)
+                #test_working_variant(valid_dict)
 
             else:  # choice == "3"
                 print("\n\033[93m[ WARNING ] This option may overload the service\033[0m\n")
@@ -446,16 +97,16 @@ def punycode_menu():
 
                 # Display ALL in a single numbered list
                 if combined_list:
-                    print("\n\033[96m[ COMBINED PUNYCODE VARIANTS ]\033[0m")
+                    print("\n\033[96m[ COMBINED UNICODE / IDN VARIANTS ]\033[0m")
                     combined_list = list(dict.fromkeys(combined_list))
                     for idx, item in enumerate(combined_list, 1):
                         print(f"{item}")
-                    pyperclip.copy("\n".join(combined_list))
-                    print("\n\033[92m[ OK ] All punycode variants (vowel + consonant) copied to clipboard\033[0m\n")
+                    copy("\n".join(combined_list))
+                    print("\n\033[92m[ OK ] All IDN variants (vowel + consonant) copied to clipboard\033[0m\n")
 
                 # Ask if any of them worked
-                if combined_valid_dict:
-                    test_working_variant(combined_valid_dict)
+                #if combined_valid_dict:
+                    #test_working_variant(combined_valid_dict)
 
         elif choice == "4":
             break
@@ -543,8 +194,8 @@ def encoded_menu():
         final = "\n".join(unique)
         print(final)
 
-        if CLIPBOARD:
-            pyperclip.copy(final)
+        if copy:
+            copy(final)
             if mode == "2":
                 print("\n\033[93m[ WARNING ]  This option may overload the service\033[0m")
             print("\n\033[92m[ OK ]       Payloads copied to clipboard\033[0m\n")

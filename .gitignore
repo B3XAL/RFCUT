@@ -1,9 +1,14 @@
 # Ignore Python virtual environment
 rfcenv/
+vendor/
+core/__pycache__/
+utils/__pycache__/
 
 # Byte-compiled / cache files
 __pycache__/
 *.py[cod]
+*.pyc
+*.pyo
 
 # OS files
 .DS_Store
