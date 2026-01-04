@@ -4,6 +4,7 @@ from core.homograph import *
 from core.punycode import *
 from core.fuzzers import *
 from utils.ui import *
+from core.puny_fuzzer_mode import *
 
 # =========================
 # PUNNYCODE - MENU
@@ -14,15 +15,14 @@ def punycode_menu():
         print("\n\033[96m[ PUNYCODE :: MAIN MODE ]\033[0m\n")
         print("  \033[92m(1)\033[0m  Homograph discovery")
         print("  \033[92m(2)\033[0m  Craft malformed Punycode")
-        print("  \033[92m(2)\033[0m  Back\n")
+        print("  \033[92m(3)\033[0m  Back\n")
 
         pre_choice = input("\033[93m> \033[0m").strip()
 
         if pre_choice == "1":
             homograph_mode()
         elif pre_choice == "2":
-        #    malformed_punycode_mode()
-            print("\n  \033[93m[ UNDER CONSTRUCTION ]\033[0m\n")
+            malformed_punycode_mode()
         elif pre_choice == "3":
             break
         else:

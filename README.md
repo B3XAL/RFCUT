@@ -83,6 +83,7 @@ source rfcenv/bin/activate
 pip install -r requirements.txt 
 sudo apt update
 sudo apt install libicu-dev -y
+composer require algo26-matthias/idna-convert:4.0.0 --ignore-platform-reqs
 python3 RFCUT.py
 ```
 ---

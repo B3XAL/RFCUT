@@ -3,6 +3,8 @@ rfcenv/
 vendor/
 core/__pycache__/
 utils/__pycache__/
+composer.lock
+composer.json
 
 # Byte-compiled / cache files
 __pycache__/
