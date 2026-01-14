@@ -122,17 +122,36 @@ Generate RFC 2047 payloads for bypass testing.
 
 Generate Unicode / Punycode domain variants.
 
+**Punycode Main Mode**
+- Homograph discovery
+- Craft malformed Punycode
+
 ![Punycode_Mode](images/punycode_mode.png)
 
 Features:
-- Automatic email detection  
-- Unicode equivalence discovery  
-- IDNA punycode generation  
-- Combined vowel + consonant mutation  
-- Live decoding of successful variants  
+- Automatic email detection
+- Unicode equivalence discovery
+- IDNA punycode generation
+- Combined vowel + consonant mutation
+- Live decoding of successful variants
+- Homograph discovery
+- Malformed Punycode crafting
 
-![Punycode_POC](images/punycode_poc.png)
+**Homograph Mode**
+- Generate variants for a single vowel
+- Generate variants for a single consonant
+- First vowel + first consonant  *(may overload the service)*
 
+![Punycode_Mode](images/punycode_mode_homograph.png)
+
+![Punycode_Mode](images/punycode_mode_homograph_1.png)
+
+**Malformed Punycode Mode**
+- IDN PHP library testing
+
+![Punycode_POC](images/punycode_mode_malformed.png)
+
+![Punycode_POC](images/punycode_mode_malformed_1.png)
 ---
 
 ## Contributions
