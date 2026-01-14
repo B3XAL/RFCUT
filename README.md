@@ -122,7 +122,7 @@ Generate RFC 2047 payloads for bypass testing.
 
 Generate Unicode / Punycode domain variants.
 
-**Punycode Main **
+**Punycode Main**
 - Homograph discovery
 - Craft malformed Punycode
 
