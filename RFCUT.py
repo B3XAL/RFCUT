@@ -138,11 +138,25 @@ def encoded_menu():
         if mode == "1":
             print("\n\033[96m[ SINGLE PAYLOAD MODE ]\033[0m\n")
 
+            #punct = None
+            #if input("\033[93mAdd punctuation? (y/n): \033[0m").lower() == "y":
+            #    for i, p in enumerate(PUNCTUATION, 1):
+            #        print(f"{i}. {p}")
+            #    punct = list(PUNCTUATION.values())[int(input("\033[93m> \033[0m")) - 1]
+
+            print("\n\033[96m[ PUNCTUATION ]\033[0m")
+            print("Select punctuation\n")
+
             punct = None
-            if input("\033[93mAdd punctuation? (y/n): \033[0m").lower() == "y":
-                for i, p in enumerate(PUNCTUATION, 1):
-                    print(f"{i}. {p}")
-                punct = list(PUNCTUATION.values())[int(input("\033[93m> \033[0m")) - 1]
+            all_punct = list(PUNCTUATION.items())
+
+            for i, (name, _) in enumerate(all_punct, 1):
+                print(f"{i}. {name}")
+
+            choice = input("\n\033[93m> \033[0m").strip()
+
+            if choice != "1":
+                punct = all_punct[int(choice) - 1][1]
 
             print("\n\033[96m[ CONTROL CHARACTERS ]\033[0m")
             print("Select control characters (e.g. 1,5)\n")
