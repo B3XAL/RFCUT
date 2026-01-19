@@ -4,7 +4,7 @@ This project is inspired by the outstanding research of **Gareth Heyes** ([“Sp
 RFCUT builds upon his findings to explore real‑world email parsing discrepancies, from malformed local‑parts to broken Punycode domain handling, with the goal of improving security testing and defensive understanding.
 
 **RFCUT** is an advanced offensive security tool designed to break, bypass and stress‑test email processing systems by generating malformed and ambiguous payloads based on RFC standards.
-It focuses on exploiting discrepancies in **Encoded‑Word (RFC 2047)** handling and **Punycode / IDNA** domain normalization to uncover parsing bugs, filtering bypasses, and security weaknesses in mail servers, gateways and clients.
+It focuses on exploiting discrepancies in **Encoded‑Word (RFC 2047)** handling and **homograph** domain normalization to uncover parsing bugs, filtering bypasses, and security weaknesses in mail servers, gateways and clients.
 
 It is intended for **security research**, **penetration testing**, **CTFs**, and **email security assessments**.
 
