@@ -10,7 +10,7 @@ It is intended for **security research**, **penetration testing**, **CTFs**, and
 
 If you want to **learn how to use RFCUT step by step** or **practice real‑world email security testing techniques**, follow the upcoming technical publication:
 
-**→ In‑depth RFCUT Tutorial & Lab Walkthrough **
+**→ In‑depth RFCUT Tutorial & Lab Walkthrough**
 
 - 🔗 [Email Validation Discrepancies & RFC Homographs](https://cylum.tech/articulos/articulos-discrepancias-validacion-email-rfc-homografos/)
 - 📄 [Abuse of RFC ambiguity in mail systems (PDF)](https://cylum.tech/wp-content/uploads/2026/02/Abuso-de-la-ambiguedad-de-RFC-en-los-sistemas-de-correo.pdf)
