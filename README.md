@@ -10,9 +10,12 @@ It is intended for **security research**, **penetration testing**, **CTFs**, and
 
 If you want to **learn how to use RFCUT step by step** or **practice real‑world email security testing techniques**, follow the upcoming technical publication:
 
-**→ In‑depth RFCUT Tutorial & Lab Walkthrough (Coming Soon)**
+**→ In‑depth RFCUT Tutorial & Lab Walkthrough **
 
-The article will guide you through practical attack scenarios, payload construction, and real parsing discrepancies observed in modern mail infrastructure.
+- 🔗 [Email Validation Discrepancies & RFC Homographs](https://cylum.tech/articulos/articulos-discrepancias-validacion-email-rfc-homografos/)
+- 📄 [Abuse of RFC ambiguity in mail systems (PDF)](https://cylum.tech/wp-content/uploads/2026/02/Abuso-de-la-ambiguedad-de-RFC-en-los-sistemas-de-correo.pdf)
+
+These resources cover practical attack scenarios, payload construction techniques, and real parsing discrepancies observed in modern mail systems.
 
 RFCUT is built to encourage experimentation, curiosity and responsible security research.
 
