@@ -13,7 +13,7 @@ If you want to **learn how to use RFCUT step by step** or **practice real‑worl
 **→ In‑depth RFCUT Tutorial & Lab Walkthrough**
 
 - 🔗 [Email Validation Discrepancies & RFC Homographs](https://cylum.tech/articulos/articulos-discrepancias-validacion-email-rfc-homografos/)
-- 📄 [Abuse of RFC ambiguity in mail systems (PDF)](https://cylum.tech/wp-content/uploads/2026/02/Abuso-de-la-ambiguedad-de-RFC-en-los-sistemas-de-correo.pdf)
+- 📄 [Abuse of RFC ambiguity in mail systems (PDF)](https://cylum.tech/wp-content/uploads/2026/02/CylumLab-Abuso-de-la-ambiguedad-de-RFC-en-los-sistemas-de-correo.pdf)
 
 These resources cover practical attack scenarios, payload construction techniques, and real parsing discrepancies observed in modern mail systems.
 
